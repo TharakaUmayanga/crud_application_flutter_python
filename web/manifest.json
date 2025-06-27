@@ -1,12 +1,12 @@
 {
-    "name": "crud_application",
-    "short_name": "crud_application",
+    "name": "User CRUD Web Application",
+    "short_name": "User CRUD",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#2196F3",
+    "theme_color": "#2196F3",
+    "description": "A comprehensive web application for managing users with full CRUD functionality.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
