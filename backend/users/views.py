@@ -6,8 +6,12 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.pagination import PageNumberPagination
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from .models import User
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from .models import User, APIKey
 from .serializers import UserSerializer, UserListSerializer
+from .permissions import HasAPIKeyPermission, APIKeyRateLimit, ResourcePermission
+from .authentication import RateLimitMixin
 
 
 class CustomPagination(PageNumberPagination):
@@ -26,15 +30,18 @@ class CustomPagination(PageNumberPagination):
         })
 
 
-class UserListCreateView(generics.ListCreateAPIView):
+class UserListCreateView(generics.ListCreateAPIView, RateLimitMixin):
     """
     API endpoint for listing and creating users
     GET: List all users with pagination
     POST: Create a new user
+    Requires API key authentication
     """
     queryset = User.objects.all()
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     pagination_class = CustomPagination
+    permission_classes = [HasAPIKeyPermission, APIKeyRateLimit]
+    permission_resource = 'users'
 
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -97,16 +104,19 @@ class UserListCreateView(generics.ListCreateAPIView):
             )
 
 
-class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
+class UserDetailView(generics.RetrieveUpdateDestroyAPIView, RateLimitMixin):
     """
     API endpoint for retrieving, updating, and deleting a specific user
     GET: Retrieve user details
     PUT/PATCH: Update user
     DELETE: Delete user
+    Requires API key authentication
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_classes = [HasAPIKeyPermission, APIKeyRateLimit]
+    permission_resource = 'users'
 
     def retrieve(self, request, *args, **kwargs):
         """Retrieve a specific user"""
@@ -209,3 +219,86 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_key_info(request):
+    """
+    Get information about the current API key being used.
+    Does not expose the actual key value.
+    """
+    if not hasattr(request, 'auth') or not isinstance(request.auth, APIKey):
+        return Response(
+            {'error': 'No valid API key provided'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
+    api_key = request.auth
+    
+    return Response({
+        'key_name': api_key.key_name,
+        'key_prefix': api_key.key_prefix,
+        'permissions': api_key.permissions,
+        'rate_limit': api_key.rate_limit,
+        'is_active': api_key.is_active,
+        'created_at': api_key.created_at,
+        'last_used': api_key.last_used,
+        'expires_at': api_key.expires_at,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def validate_api_key(request):
+    """
+    Validate an API key and return its information.
+    Used for testing API key validity.
+    """
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    
+    if not auth_header:
+        return Response(
+            {'valid': False, 'error': 'No authorization header provided'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        auth_type, api_key = auth_header.split(' ', 1)
+        if auth_type.lower() != 'apikey':
+            return Response(
+                {'valid': False, 'error': 'Invalid authorization type'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    except ValueError:
+        return Response(
+            {'valid': False, 'error': 'Invalid authorization format'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        prefix = api_key[:8]
+        api_key_obj = APIKey.objects.get(key_prefix=prefix, is_active=True)
+        
+        if api_key_obj.verify_key(api_key):
+            return Response({
+                'valid': True,
+                'key_name': api_key_obj.key_name,
+                'permissions': api_key_obj.permissions,
+                'rate_limit': api_key_obj.rate_limit,
+            })
+        else:
+            return Response(
+                {'valid': False, 'error': 'Invalid API key'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+    except APIKey.DoesNotExist:
+        return Response(
+            {'valid': False, 'error': 'API key not found'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    except Exception as e:
+        return Response(
+            {'valid': False, 'error': 'Validation error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

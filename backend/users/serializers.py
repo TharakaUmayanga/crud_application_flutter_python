@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, APIKey
 import re
 
 
@@ -107,3 +107,38 @@ class UserListSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.profile_picture.url)
             return obj.profile_picture.url
         return None
+
+
+class APIKeySerializer(serializers.ModelSerializer):
+    """Serializer for API Key model (without exposing the actual key)"""
+    
+    class Meta:
+        model = APIKey
+        fields = [
+            'id', 'key_name', 'key_prefix', 'permissions', 
+            'is_active', 'rate_limit', 'created_at', 
+            'last_used', 'expires_at'
+        ]
+        read_only_fields = [
+            'id', 'key_prefix', 'created_at', 'last_used'
+        ]
+    
+    def validate_permissions(self, value):
+        """Validate permissions format"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Permissions must be a dictionary.")
+        
+        valid_actions = ['read', 'write', 'delete', 'admin']
+        for resource, actions in value.items():
+            if not isinstance(actions, list):
+                raise serializers.ValidationError(
+                    f"Permissions for '{resource}' must be a list."
+                )
+            for action in actions:
+                if action not in valid_actions:
+                    raise serializers.ValidationError(
+                        f"Invalid action '{action}' for resource '{resource}'. "
+                        f"Valid actions are: {', '.join(valid_actions)}"
+                    )
+        
+        return value

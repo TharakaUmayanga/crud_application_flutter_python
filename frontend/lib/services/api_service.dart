@@ -4,19 +4,18 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
+import '../config/api_config.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api'; // Change this to your backend URL
-  
   // Get all users with pagination
   static Future<Map<String, dynamic>> getUsers({int page = 1, int limit = 10}) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/users/?page=$page&page_size=$limit'),
-        headers: {'Content-Type': 'application/json'},
-      );
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}?page=$page&page_size=$limit'),
+        headers: ApiConfig.headers,
+      ).timeout(ApiConfig.requestTimeout);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == ApiConstants.statusOk) {
         final data = jsonDecode(response.body);
         
         // Handle null safety for the results array
@@ -34,17 +33,23 @@ class ApiService {
           'totalPages': data['total_pages'] ?? 1,
         };
       } else {
-        throw Exception('Failed to load users: ${response.statusCode}');
+        throw _handleApiError(response);
       }
     } catch (e) {
-      throw Exception('Network error: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
     }
   }
 
   // Create a new user
   static Future<User> createUser(User user, {File? profileImage, Uint8List? webImageBytes, String? webImageName}) async {
     try {
-      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/users/'));
+      var request = http.MultipartRequest('POST', Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}'));
+      
+      // Add authentication headers
+      request.headers.addAll(ApiConfig.multipartHeaders);
       
       // Add user data
       request.fields['name'] = user.name;
@@ -78,17 +83,23 @@ class ApiService {
           return User.fromJson(data as Map<String, dynamic>);
         }
       } else {
-        throw Exception('Failed to create user: ${response.body}');
+        throw _handleApiError(response);
       }
     } catch (e) {
-      throw Exception('Network error: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
     }
   }
 
   // Update an existing user
   static Future<User> updateUser(User user, {File? profileImage, Uint8List? webImageBytes, String? webImageName}) async {
     try {
-      var request = http.MultipartRequest('PUT', Uri.parse('$baseUrl/users/${user.id}/'));
+      var request = http.MultipartRequest('PUT', Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}${user.id}/'));
+      
+      // Add authentication headers
+      request.headers.addAll(ApiConfig.multipartHeaders);
       
       // Add user data
       request.fields['name'] = user.name;
@@ -122,10 +133,13 @@ class ApiService {
           return User.fromJson(data as Map<String, dynamic>);
         }
       } else {
-        throw Exception('Failed to update user: ${response.body}');
+        throw _handleApiError(response);
       }
     } catch (e) {
-      throw Exception('Network error: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
     }
   }
 
@@ -133,15 +147,18 @@ class ApiService {
   static Future<void> deleteUser(int userId) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/users/$userId/'),
-        headers: {'Content-Type': 'application/json'},
-      );
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}$userId/'),
+        headers: ApiConfig.headers,
+      ).timeout(ApiConfig.requestTimeout);
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to delete user: ${response.body}');
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw _handleApiError(response);
       }
     } catch (e) {
-      throw Exception('Network error: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
     }
   }
 
@@ -149,9 +166,9 @@ class ApiService {
   static Future<User> getUser(int userId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId/'),
-        headers: {'Content-Type': 'application/json'},
-      );
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}$userId/'),
+        headers: ApiConfig.headers,
+      ).timeout(ApiConfig.requestTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -162,10 +179,93 @@ class ApiService {
           return User.fromJson(data as Map<String, dynamic>);
         }
       } else {
-        throw Exception('Failed to load user: ${response.statusCode}');
+        throw _handleApiError(response);
       }
     } catch (e) {
-      throw Exception('Network error: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
     }
+  }
+
+  // Validate API key
+  static Future<Map<String, dynamic>> validateApiKey() async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.apiKeyValidateEndpoint}'),
+        headers: ApiConfig.headers,
+      ).timeout(ApiConfig.requestTimeout);
+
+      if (response.statusCode == ApiConstants.statusOk) {
+        return jsonDecode(response.body);
+      } else {
+        throw _handleApiError(response);
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
+    }
+  }
+
+  // Get API key information
+  static Future<Map<String, dynamic>> getApiKeyInfo() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.apiKeyInfoEndpoint}'),
+        headers: ApiConfig.headers,
+      ).timeout(ApiConfig.requestTimeout);
+
+      if (response.statusCode == ApiConstants.statusOk) {
+        return jsonDecode(response.body);
+      } else {
+        throw _handleApiError(response);
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('${ApiConstants.networkError}: $e');
+    }
+  }
+
+  // Private method to handle API errors
+  static Exception _handleApiError(http.Response response) {
+    String message;
+    
+    switch (response.statusCode) {
+      case ApiConstants.statusUnauthorized:
+        message = ApiConstants.unauthorized;
+        break;
+      case ApiConstants.statusForbidden:
+        message = ApiConstants.forbidden;
+        break;
+      case ApiConstants.statusNotFound:
+        message = ApiConstants.notFound;
+        break;
+      case ApiConstants.statusTooManyRequests:
+        message = ApiConstants.rateLimitExceeded;
+        break;
+      case ApiConstants.statusInternalServerError:
+        message = ApiConstants.serverError;
+        break;
+      default:
+        message = '${ApiConstants.unknownError} (${response.statusCode})';
+    }
+    
+    try {
+      final errorData = jsonDecode(response.body);
+      if (errorData['detail'] != null) {
+        message = errorData['detail'];
+      } else if (errorData['error'] != null) {
+        message = errorData['error'];
+      }
+    } catch (e) {
+      // If response body is not valid JSON, use the default message
+    }
+    
+    return Exception(message);
   }
 }
