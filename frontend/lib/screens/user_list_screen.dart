@@ -35,10 +35,10 @@ class _UserListScreenState extends State<UserListScreen> {
     try {
       final result = await UserService.getUsers(page: page, limit: _usersPerPage);
       setState(() {
-        _users = result['users'];
-        _currentPage = result['page'];
-        _totalPages = result['total_pages'];
-        _totalUsers = result['total'];
+        _users = (result['users'] as List<User>?) ?? [];
+        _currentPage = (result['page'] as int?) ?? page;
+        _totalPages = (result['totalPages'] as int?) ?? 1;
+        _totalUsers = (result['total'] as int?) ?? 0;
       });
     } catch (e) {
       setState(() {

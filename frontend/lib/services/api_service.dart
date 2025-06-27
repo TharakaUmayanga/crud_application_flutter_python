@@ -10,17 +10,26 @@ class ApiService {
   static Future<Map<String, dynamic>> getUsers({int page = 1, int limit = 10}) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/users?page=$page&limit=$limit'),
+        Uri.parse('$baseUrl/users/?page=$page&page_size=$limit'),
         headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
+        // Handle null safety for the results array
+        final resultsData = data['results'];
+        List<User> users = [];
+        
+        if (resultsData != null && resultsData is List) {
+          users = resultsData.map((json) => User.fromJson(json as Map<String, dynamic>)).toList();
+        }
+        
         return {
-          'users': (data['users'] as List).map((json) => User.fromJson(json)).toList(),
-          'total': data['total'],
-          'page': data['page'],
-          'totalPages': data['total_pages'],
+          'users': users,
+          'total': data['count'] ?? 0,
+          'page': data['current_page'] ?? page,
+          'totalPages': data['total_pages'] ?? 1,
         };
       } else {
         throw Exception('Failed to load users: ${response.statusCode}');
@@ -33,7 +42,7 @@ class ApiService {
   // Create a new user
   static Future<User> createUser(User user, {File? profileImage}) async {
     try {
-      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/users'));
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/users/'));
       
       // Add user data
       request.fields['name'] = user.name;
@@ -51,7 +60,13 @@ class ApiService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 201) {
-        return User.fromJson(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        // The backend returns the user data in a 'user' field
+        if (data['user'] != null) {
+          return User.fromJson(data['user'] as Map<String, dynamic>);
+        } else {
+          return User.fromJson(data as Map<String, dynamic>);
+        }
       } else {
         throw Exception('Failed to create user: ${response.body}');
       }
@@ -63,7 +78,7 @@ class ApiService {
   // Update an existing user
   static Future<User> updateUser(User user, {File? profileImage}) async {
     try {
-      var request = http.MultipartRequest('PUT', Uri.parse('$baseUrl/users/${user.id}'));
+      var request = http.MultipartRequest('PUT', Uri.parse('$baseUrl/users/${user.id}/'));
       
       // Add user data
       request.fields['name'] = user.name;
@@ -81,7 +96,13 @@ class ApiService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
-        return User.fromJson(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        // The backend returns the user data in a 'user' field
+        if (data['user'] != null) {
+          return User.fromJson(data['user'] as Map<String, dynamic>);
+        } else {
+          return User.fromJson(data as Map<String, dynamic>);
+        }
       } else {
         throw Exception('Failed to update user: ${response.body}');
       }
@@ -94,7 +115,7 @@ class ApiService {
   static Future<void> deleteUser(int userId) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/users/$userId'),
+        Uri.parse('$baseUrl/users/$userId/'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -110,12 +131,18 @@ class ApiService {
   static Future<User> getUser(int userId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId'),
+        Uri.parse('$baseUrl/users/$userId/'),
         headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
-        return User.fromJson(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        // The backend returns the user data in a 'user' field
+        if (data['user'] != null) {
+          return User.fromJson(data['user'] as Map<String, dynamic>);
+        } else {
+          return User.fromJson(data as Map<String, dynamic>);
+        }
       } else {
         throw Exception('Failed to load user: ${response.statusCode}');
       }
