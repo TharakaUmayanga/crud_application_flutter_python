@@ -6,6 +6,43 @@ import secrets
 import hashlib
 
 
+# Import validators for use in clean methods instead of field validators
+def validate_name(value):
+    from .validators import NameValidator
+    validator = NameValidator()
+    validator(value)
+
+def validate_email(value):
+    from .validators import CustomEmailValidator
+    validator = CustomEmailValidator()
+    validator(value)
+
+def validate_phone(value):
+    from .validators import PhoneNumberValidator
+    validator = PhoneNumberValidator()
+    validator(value)
+
+def validate_address(value):
+    from .validators import AddressValidator
+    validator = AddressValidator()
+    validator(value)
+
+def validate_age(value):
+    from .validators import AgeValidator
+    validator = AgeValidator()
+    validator(value)
+
+def validate_image(value):
+    from .validators import ImageValidator
+    validator = ImageValidator()
+    validator(value)
+
+def validate_json_permissions(value):
+    from .validators import JSONFieldValidator
+    validator = JSONFieldValidator()
+    validator(value)
+
+
 def user_profile_picture_path(instance, filename):
     """Generate file path for user profile pictures"""
     # Use UUID if instance doesn't have an ID yet (during creation)
@@ -30,7 +67,7 @@ class APIKey(models.Model):
     )
     permissions = models.JSONField(
         default=dict,
-        help_text="Permissions for this API key"
+        help_text="API key permissions (JSON format, max 10KB)"
     )
     is_active = models.BooleanField(default=True)
     rate_limit = models.PositiveIntegerField(
@@ -86,44 +123,46 @@ class APIKey(models.Model):
         resource_perms = self.permissions.get(resource, [])
         return action in resource_perms or 'admin' in resource_perms
 
+    def clean(self):
+        """Custom validation for API key"""
+        super().clean()
+        
+        if self.permissions:
+            validate_json_permissions(self.permissions)
+
 
 class User(models.Model):
     name = models.CharField(
         max_length=100,
-        help_text="User's full name"
+        help_text="User's full name (letters, spaces, hyphens, apostrophes only)"
     )
     email = models.EmailField(
         unique=True,
-        validators=[EmailValidator()],
+        max_length=254,
         help_text="Valid email address"
     )
     phone_number = models.CharField(
-        max_length=15,
+        max_length=20,
         blank=True,
         null=True,
-        validators=[
-            RegexValidator(
-                regex=r'^\+?1?\d{9,15}$',
-                message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
-            )
-        ],
-        help_text="Optional phone number"
+        help_text="International phone number format: +1234567890"
     )
     address = models.TextField(
+        max_length=500,
         blank=True,
         null=True,
-        help_text="Optional address"
+        help_text="Physical address (max 500 characters)"
     )
     age = models.PositiveIntegerField(
         blank=True,
         null=True,
-        help_text="Optional age"
+        help_text="Age in years (0-150)"
     )
     profile_picture = models.ImageField(
         upload_to=user_profile_picture_path,
         blank=True,
         null=True,
-        help_text="Optional profile picture"
+        help_text="Profile picture (JPG, PNG, GIF, WebP - max 5MB, 2048x2048px)"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -135,6 +174,28 @@ class User(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.email})"
+
+    def clean(self):
+        """Custom validation using our validators"""
+        super().clean()
+        
+        if self.name:
+            validate_name(self.name)
+        
+        if self.email:
+            validate_email(self.email)
+        
+        if self.phone_number:
+            validate_phone(self.phone_number)
+        
+        if self.address:
+            validate_address(self.address)
+        
+        if self.age is not None:
+            validate_age(self.age)
+        
+        if self.profile_picture:
+            validate_image(self.profile_picture)
 
     def delete(self, *args, **kwargs):
         """Override delete to remove profile picture file"""

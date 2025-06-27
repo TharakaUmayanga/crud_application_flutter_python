@@ -12,6 +12,7 @@ from .models import User, APIKey
 from .serializers import UserSerializer, UserListSerializer
 from .permissions import HasAPIKeyPermission, APIKeyRateLimit, ResourcePermission
 from .authentication import RateLimitMixin
+from .error_utils import validation_error_response, success_response, error_response
 
 
 class CustomPagination(PageNumberPagination):
@@ -77,30 +78,23 @@ class UserListCreateView(generics.ListCreateAPIView, RateLimitMixin):
                 serializer = self.get_serializer(data=request.data)
                 if serializer.is_valid():
                     user = serializer.save()
-                    return Response(
-                        {
-                            'message': 'User created successfully',
-                            'user': UserSerializer(user, context={'request': request}).data
-                        },
-                        status=status.HTTP_201_CREATED
+                    return success_response(
+                        message='User created successfully',
+                        data=UserSerializer(user, context={'request': request}).data,
+                        status_code=status.HTTP_201_CREATED
                     )
                 else:
                     print(f"Serializer errors: {serializer.errors}")
-                    return Response(
-                        {
-                            'message': 'Validation failed',
-                            'errors': serializer.errors
-                        },
-                        status=status.HTTP_400_BAD_REQUEST
+                    return validation_error_response(
+                        message='Validation failed',
+                        errors=serializer.errors
                     )
         except Exception as e:
             print(f"Exception in create: {e}")
-            return Response(
-                {
-                    'message': 'An error occurred while creating the user',
-                    'error': str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            return error_response(
+                message='An error occurred while creating the user',
+                error_details=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -161,34 +155,27 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView, RateLimitMixin):
                         except:
                             pass  # Ignore errors in file deletion
                     
-                    return Response({
-                        'message': 'User updated successfully',
-                        'user': serializer.data
-                    })
+                    return success_response(
+                        message='User updated successfully',
+                        data=serializer.data
+                    )
                 else:
                     print(f"Update serializer errors: {serializer.errors}")
-                    return Response(
-                        {
-                            'message': 'Validation failed',
-                            'errors': serializer.errors
-                        },
-                        status=status.HTTP_400_BAD_REQUEST
+                    return validation_error_response(
+                        message='Validation failed',
+                        errors=serializer.errors
                     )
         except User.DoesNotExist:
-            return Response(
-                {
-                    'message': 'User not found',
-                    'error': 'The requested user does not exist'
-                },
-                status=status.HTTP_404_NOT_FOUND
+            return error_response(
+                message='User not found',
+                error_details='The requested user does not exist',
+                status_code=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            return Response(
-                {
-                    'message': 'An error occurred while updating the user',
-                    'error': str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            return error_response(
+                message='An error occurred while updating the user',
+                error_details=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def destroy(self, request, *args, **kwargs):
@@ -197,27 +184,20 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView, RateLimitMixin):
             instance = self.get_object()
             user_name = instance.name
             instance.delete()
-            return Response(
-                {
-                    'message': f'User "{user_name}" deleted successfully'
-                },
-                status=status.HTTP_200_OK
+            return success_response(
+                message=f'User "{user_name}" deleted successfully'
             )
         except User.DoesNotExist:
-            return Response(
-                {
-                    'message': 'User not found',
-                    'error': 'The requested user does not exist'
-                },
-                status=status.HTTP_404_NOT_FOUND
+            return error_response(
+                message='User not found',
+                error_details='The requested user does not exist',
+                status_code=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            return Response(
-                {
-                    'message': 'An error occurred while deleting the user',
-                    'error': str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            return error_response(
+                message='An error occurred while deleting the user',
+                error_details=str(e),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 

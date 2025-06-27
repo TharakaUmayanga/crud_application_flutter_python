@@ -76,8 +76,12 @@ class ApiService {
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        // The backend returns the user data in a 'user' field
-        if (data['user'] != null) {
+        // Handle the new standardized success response format
+        if (data['success'] == true && data['data'] != null) {
+          return User.fromJson(data['data'] as Map<String, dynamic>);
+        }
+        // Handle legacy format for backward compatibility
+        else if (data['user'] != null) {
           return User.fromJson(data['user'] as Map<String, dynamic>);
         } else {
           return User.fromJson(data as Map<String, dynamic>);
@@ -126,8 +130,12 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // The backend returns the user data in a 'user' field
-        if (data['user'] != null) {
+        // Handle the new standardized success response format
+        if (data['success'] == true && data['data'] != null) {
+          return User.fromJson(data['data'] as Map<String, dynamic>);
+        }
+        // Handle legacy format for backward compatibility
+        else if (data['user'] != null) {
           return User.fromJson(data['user'] as Map<String, dynamic>);
         } else {
           return User.fromJson(data as Map<String, dynamic>);
@@ -235,37 +243,66 @@ class ApiService {
   static Exception _handleApiError(http.Response response) {
     String message;
     
-    switch (response.statusCode) {
-      case ApiConstants.statusUnauthorized:
-        message = ApiConstants.unauthorized;
-        break;
-      case ApiConstants.statusForbidden:
-        message = ApiConstants.forbidden;
-        break;
-      case ApiConstants.statusNotFound:
-        message = ApiConstants.notFound;
-        break;
-      case ApiConstants.statusTooManyRequests:
-        message = ApiConstants.rateLimitExceeded;
-        break;
-      case ApiConstants.statusInternalServerError:
-        message = ApiConstants.serverError;
-        break;
-      default:
-        message = '${ApiConstants.unknownError} (${response.statusCode})';
-    }
-    
     try {
       final errorData = jsonDecode(response.body);
+      
+      // Handle the new standardized error format
+      if (errorData['success'] == false) {
+        message = errorData['message'] ?? 'An error occurred';
+        
+        // If there are validation errors, format them for display
+        if (errorData['errors'] != null && errorData['errors'] is Map) {
+          Map<String, dynamic> errors = errorData['errors'];
+          List<String> errorMessages = [];
+          
+          errors.forEach((field, fieldErrors) {
+            if (fieldErrors is List) {
+              for (var error in fieldErrors) {
+                errorMessages.add('$field: $error');
+              }
+            }
+          });
+          
+          if (errorMessages.isNotEmpty) {
+            message = '$message\n${errorMessages.join('\n')}';
+          }
+        }
+        
+        return Exception(message);
+      }
+      
+      // Handle legacy error format
       if (errorData['detail'] != null) {
         message = errorData['detail'];
       } else if (errorData['error'] != null) {
         message = errorData['error'];
+      } else if (errorData['message'] != null) {
+        message = errorData['message'];
+      } else {
+        message = _getDefaultErrorMessage(response.statusCode);
       }
     } catch (e) {
       // If response body is not valid JSON, use the default message
+      message = _getDefaultErrorMessage(response.statusCode);
     }
     
     return Exception(message);
+  }
+  
+  static String _getDefaultErrorMessage(int statusCode) {
+    switch (statusCode) {
+      case ApiConstants.statusUnauthorized:
+        return ApiConstants.unauthorized;
+      case ApiConstants.statusForbidden:
+        return ApiConstants.forbidden;
+      case ApiConstants.statusNotFound:
+        return ApiConstants.notFound;
+      case ApiConstants.statusTooManyRequests:
+        return ApiConstants.rateLimitExceeded;
+      case ApiConstants.statusInternalServerError:
+        return 'Internal server error';
+      default:
+        return 'Unknown error occurred (Status: $statusCode)';
+    }
   }
 }
