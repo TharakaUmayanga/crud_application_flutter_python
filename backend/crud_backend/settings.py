@@ -46,6 +46,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'users.security_middleware.SecurityHeadersMiddleware',
+    'users.middleware.RequestValidationMiddleware',  # Re-enabled with improvements
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -138,14 +140,27 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django REST Framework configuration
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'users.authentication.APIKeyAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'users.permissions.HasAPIKeyPermission',
+        'users.permissions.APIKeyRateLimit',
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour'
+    }
 }
 
 # CORS settings for Flutter frontend
@@ -169,3 +184,83 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# Cache configuration for rate limiting
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Security settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Additional security headers
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+# Data validation and security settings
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Maximum number of fields in request
+DATA_UPLOAD_MAX_NUMBER_FILES = 10  # Maximum number of files in request
+
+# Content Security Policy
+CSP_DEFAULT_SRC = ["'self'"]
+CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]
+CSP_STYLE_SRC = ["'self'", "'unsafe-inline'"]
+CSP_IMG_SRC = ["'self'", "data:", "blob:"]
+CSP_CONNECT_SRC = ["'self'"]
+
+# Input validation settings
+INPUT_VALIDATION = {
+    'MAX_STRING_LENGTH': 1000,
+    'MAX_TEXT_LENGTH': 5000,
+    'MAX_JSON_SIZE': 10 * 1024,  # 10KB
+    'ALLOWED_IMAGE_TYPES': ['jpeg', 'jpg', 'png', 'gif', 'webp'],
+    'MAX_IMAGE_SIZE': 5 * 1024 * 1024,  # 5MB
+    'MAX_IMAGE_DIMENSIONS': (2048, 2048),
+    'SANITIZE_HTML': True,
+    'STRIP_DANGEROUS_CONTENT': True,
+}
+
+# Rate limiting for requests
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = 'default'
+
+API_KEY_SETTINGS = {
+    'DEFAULT_RATE_LIMIT': 1000,  # requests per hour
+    'DEFAULT_PERMISSIONS': {
+        'users': ['read', 'write']
+    },
+    'KEY_LENGTH': 32,
+    'ENFORCE_RATE_LIMITS': True,
+    'MAX_KEYS_PER_NAME': 1,
+    'KEY_EXPIRY_DAYS': 365,  # Optional key expiry
+}
+
+# Add custom security middleware for additional headers
+class SecurityHeadersMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        
+        # Add additional security headers
+        response['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+        response['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        response['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        response['X-Permitted-Cross-Domain-Policies'] = 'none'
+        
+        return response
