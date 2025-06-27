@@ -1,51 +1,47 @@
-# Use Python 3.11 slim image for better security and smaller size
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DJANGO_SETTINGS_MODULE=crud_backend.settings_prod
 
-# Create app user for security (don't run as root)
-RUN addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 --gid 1001 --no-create-home appuser
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    libpq-dev \
-    gcc \
-    libmagic1 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set work directory
+# Set working directory
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt .
-COPY requirements.prod.txt .
-RUN pip install --no-cache-dir -r requirements.prod.txt
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        postgresql-client \
+        libmagic1 \
+        build-essential \
+        libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy project
+# Install Python dependencies
+COPY requirements.txt requirements.prod.txt ./
+RUN pip install --upgrade pip \
+    && pip install -r requirements.prod.txt --no-cache-dir
+
+# Copy project files
 COPY . .
 
-# Create media directory and set permissions
-RUN mkdir -p /app/media/profile_pictures && \
-    chown -R appuser:appgroup /app
-
-# Switch to non-root user
-USER appuser
+# Create directories
+RUN mkdir -p /app/logs /app/static /app/media
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Expose port
+# Create a non-root user to run the application
+RUN adduser --disabled-password --gecos "" appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Expose the application port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || exit 1
+# Entrypoint script
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
-# Run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "crud_backend.wsgi:application"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

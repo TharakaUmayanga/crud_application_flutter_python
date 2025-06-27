@@ -1,32 +1,37 @@
-# Flutter Web Production Docker Image
-FROM nginx:alpine
+FROM debian:latest AS build-env
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install Flutter dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    unzip \
+    xz-utils \
+    zip \
+    libglu1-mesa \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the built web app
-COPY build/web /usr/share/nginx/html
+# Download and setup Flutter
+RUN git clone https://github.com/flutter/flutter.git /usr/local/flutter
+ENV PATH=$PATH:/usr/local/flutter/bin
+RUN flutter channel stable && flutter upgrade && flutter config --enable-web
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy app source code
+WORKDIR /app
+COPY . .
 
-# Create nginx user and set permissions
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -S -D -H -u 1001 -s /sbin/nologin -G appgroup appuser && \
-    chown -R appuser:appgroup /usr/share/nginx/html && \
-    chown -R appuser:appgroup /var/cache/nginx && \
-    chown -R appuser:appgroup /var/log/nginx && \
-    chown -R appuser:appgroup /etc/nginx/conf.d
+# Build the web application
+RUN flutter pub get
+RUN flutter build web --release
 
-# Switch to non-root user
-USER appuser
+# Web server stage
+FROM nginx:stable-alpine
 
-# Expose port
-EXPOSE 8080
+# Copy the built web application
+COPY --from=build-env /app/build/web /usr/share/nginx/html
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/ || exit 1
+# Copy the custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Start nginx
+EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]
