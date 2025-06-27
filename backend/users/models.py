@@ -1,11 +1,16 @@
 from django.db import models
 from django.core.validators import EmailValidator, RegexValidator
 import os
+import uuid
 
+
+import uuid
 
 def user_profile_picture_path(instance, filename):
     """Generate file path for user profile pictures"""
-    return f'profile_pictures/{instance.id}/{filename}'
+    # Use UUID if instance doesn't have an ID yet (during creation)
+    identifier = instance.id if instance.id else str(uuid.uuid4())
+    return f'profile_pictures/{identifier}/{filename}'
 
 
 class User(models.Model):

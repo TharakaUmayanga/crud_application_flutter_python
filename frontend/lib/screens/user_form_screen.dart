@@ -100,7 +100,12 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
       if (widget.user == null) {
         // Create new user
-        await UserService.createUser(user, profileImage: _selectedImage);
+        await UserService.createUser(
+          user, 
+          profileImage: _selectedImage,
+          webImageBytes: _webImageBytes,
+          webImageName: 'profile_picture.jpg',
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('User created successfully!')),
@@ -108,7 +113,12 @@ class _UserFormScreenState extends State<UserFormScreen> {
         }
       } else {
         // Update existing user
-        await UserService.updateUser(user, profileImage: _selectedImage);
+        await UserService.updateUser(
+          user, 
+          profileImage: _selectedImage,
+          webImageBytes: _webImageBytes,
+          webImageName: 'profile_picture.jpg',
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('User updated successfully!')),

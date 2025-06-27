@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
 
@@ -40,7 +42,7 @@ class ApiService {
   }
 
   // Create a new user
-  static Future<User> createUser(User user, {File? profileImage}) async {
+  static Future<User> createUser(User user, {File? profileImage, Uint8List? webImageBytes, String? webImageName}) async {
     try {
       var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/users/'));
       
@@ -52,7 +54,15 @@ class ApiService {
       if (user.age != null) request.fields['age'] = user.age.toString();
 
       // Add profile image if provided
-      if (profileImage != null) {
+      if (kIsWeb && webImageBytes != null) {
+        // For web platform
+        request.files.add(http.MultipartFile.fromBytes(
+          'profile_picture',
+          webImageBytes,
+          filename: webImageName ?? 'profile_picture.jpg',
+        ));
+      } else if (!kIsWeb && profileImage != null) {
+        // For mobile platforms
         request.files.add(await http.MultipartFile.fromPath('profile_picture', profileImage.path));
       }
 
@@ -76,7 +86,7 @@ class ApiService {
   }
 
   // Update an existing user
-  static Future<User> updateUser(User user, {File? profileImage}) async {
+  static Future<User> updateUser(User user, {File? profileImage, Uint8List? webImageBytes, String? webImageName}) async {
     try {
       var request = http.MultipartRequest('PUT', Uri.parse('$baseUrl/users/${user.id}/'));
       
@@ -88,7 +98,15 @@ class ApiService {
       if (user.age != null) request.fields['age'] = user.age.toString();
 
       // Add profile image if provided
-      if (profileImage != null) {
+      if (kIsWeb && webImageBytes != null) {
+        // For web platform
+        request.files.add(http.MultipartFile.fromBytes(
+          'profile_picture',
+          webImageBytes,
+          filename: webImageName ?? 'profile_picture.jpg',
+        ));
+      } else if (!kIsWeb && profileImage != null) {
+        // For mobile platforms
         request.files.add(await http.MultipartFile.fromPath('profile_picture', profileImage.path));
       }
 

@@ -25,7 +25,7 @@ class User {
       phoneNumber: json['phone_number'] as String?,
       address: json['address'] as String?,
       age: json['age'] as int?,
-      profilePicture: json['profile_picture'] as String?,
+      profilePicture: json['profile_picture_url'] as String?,
     );
   }
 

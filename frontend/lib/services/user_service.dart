@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import '../models/user.dart';
 import '../config/app_config.dart';
 import 'api_service.dart';
@@ -15,20 +16,20 @@ class UserService {
   }
 
   // Create a new user
-  static Future<User> createUser(User user, {File? profileImage}) async {
+  static Future<User> createUser(User user, {File? profileImage, Uint8List? webImageBytes, String? webImageName}) async {
     if (AppConfig.useMockData) {
       return await MockApiService.createUser(user, profileImage: profileImage);
     } else {
-      return await ApiService.createUser(user, profileImage: profileImage);
+      return await ApiService.createUser(user, profileImage: profileImage, webImageBytes: webImageBytes, webImageName: webImageName);
     }
   }
 
   // Update an existing user
-  static Future<User> updateUser(User user, {File? profileImage}) async {
+  static Future<User> updateUser(User user, {File? profileImage, Uint8List? webImageBytes, String? webImageName}) async {
     if (AppConfig.useMockData) {
       return await MockApiService.updateUser(user, profileImage: profileImage);
     } else {
-      return await ApiService.updateUser(user, profileImage: profileImage);
+      return await ApiService.updateUser(user, profileImage: profileImage, webImageBytes: webImageBytes, webImageName: webImageName);
     }
   }
 

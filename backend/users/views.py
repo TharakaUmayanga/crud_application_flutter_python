@@ -62,6 +62,10 @@ class UserListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         """Create a new user with proper error handling"""
         try:
+            # Debug: Print received data
+            print(f"Received data: {request.data}")
+            print(f"Received files: {request.FILES}")
+            
             with transaction.atomic():
                 serializer = self.get_serializer(data=request.data)
                 if serializer.is_valid():
@@ -74,6 +78,7 @@ class UserListCreateView(generics.ListCreateAPIView):
                         status=status.HTTP_201_CREATED
                     )
                 else:
+                    print(f"Serializer errors: {serializer.errors}")
                     return Response(
                         {
                             'message': 'Validation failed',
@@ -82,6 +87,7 @@ class UserListCreateView(generics.ListCreateAPIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
         except Exception as e:
+            print(f"Exception in create: {e}")
             return Response(
                 {
                     'message': 'An error occurred while creating the user',
@@ -123,6 +129,10 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         """Update a user with proper error handling"""
         try:
+            # Debug: Print received data
+            print(f"Update - Received data: {request.data}")
+            print(f"Update - Received files: {request.FILES}")
+            
             with transaction.atomic():
                 partial = kwargs.pop('partial', False)
                 instance = self.get_object()
@@ -146,6 +156,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                         'user': serializer.data
                     })
                 else:
+                    print(f"Update serializer errors: {serializer.errors}")
                     return Response(
                         {
                             'message': 'Validation failed',
