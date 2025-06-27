@@ -196,6 +196,11 @@ class _UserListScreenState extends State<UserListScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            onPressed: () => _navigateToUserForm(),
+            icon: const Icon(Icons.add),
+            tooltip: 'Add User',
+          ),
+          IconButton(
             onPressed: _refreshUsers,
             icon: const Icon(Icons.refresh),
           ),
@@ -274,12 +279,6 @@ class _UserListScreenState extends State<UserListScreen> {
                           ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToUserForm(),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
       ),
     );
   }
