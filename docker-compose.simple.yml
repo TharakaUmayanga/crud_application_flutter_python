@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (using port 5433 to avoid conflicts)
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crud_simple_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: simplepassword123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_simple_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crud_simple_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache (using port 6380 to avoid conflicts)
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_simple_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Django API Backend
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - DJANGO_SETTINGS_MODULE=crud_backend.settings_simple
+    env_file:
+      - ./backend/.env.simple
+    ports:
+      - "9000:8000"
+    volumes:
+      - media_files:/app/media
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health/', timeout=10)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Flutter Web Frontend
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "9001:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.simple.conf:/etc/nginx/nginx.conf
+      - media_files:/var/www/media:ro
+    depends_on:
+      - api
+      - web
+
+volumes:
+  postgres_simple_data:
+  redis_simple_data:
+  media_files:

@@ -1,0 +1,69 @@
+"""
+Simple production settings - HTTP only, no SSL complexity
+"""
+
+from .settings import *
+import os
+
+# Override for simple production
+DEBUG = False
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
+
+# Database
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'crud_simple_db',
+        'USER': 'postgres',
+        'PASSWORD': 'simplepassword123',
+        'HOST': 'db',
+        'PORT': '5432',
+    }
+}
+
+# CORS for localhost
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
+# Static files
+STATIC_ROOT = '/app/staticfiles'
+
+# Media files
+MEDIA_ROOT = '/app/media'
+MEDIA_URL = '/media/'
+
+# Cache
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+# Email
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Security (disabled for HTTP)
+SECURE_SSL_REDIRECT = False
+SECURE_PROXY_SSL_HEADER = None
+SECURE_HSTS_SECONDS = 0
+
+# Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
